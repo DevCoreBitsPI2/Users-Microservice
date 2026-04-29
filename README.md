@@ -1,98 +1,222 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Users Microservice
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Microservicio responsable de la gestión de **empleados** y **administradores** del sistema. Integra autenticación y gestión de identidad a través de Supabase Auth, y almacena datos del dominio en PostgreSQL via Prisma.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Tabla de Contenidos
 
-## Description
+- [Users Microservice](#users-microservice)
+  - [Tabla de Contenidos](#tabla-de-contenidos)
+  - [Descripción General](#descripción-general)
+  - [Arquitectura y Módulos](#arquitectura-y-módulos)
+  - [Modelos de Base de Datos](#modelos-de-base-de-datos)
+    - [`administrators`](#administrators)
+    - [`employees`](#employees)
+    - [`users` (Supabase Auth Schema)](#users-supabase-auth-schema)
+  - [Mensajes NATS (API Interna)](#mensajes-nats-api-interna)
+    - [Empleados](#empleados)
+    - [Administradores](#administradores)
+  - [Flujo de Autenticación](#flujo-de-autenticación)
+    - [Invitación de Empleado](#invitación-de-empleado)
+    - [Creación de Administrador](#creación-de-administrador)
+    - [Bloqueo de Usuario](#bloqueo-de-usuario)
+  - [Variables de Entorno](#variables-de-entorno)
+  - [Instalación y Ejecución](#instalación-y-ejecución)
+    - [Modo desarrollo (local)](#modo-desarrollo-local)
+    - [Modo Docker (recomendado)](#modo-docker-recomendado)
+      - [Esto no es necesario si se quiere ejecutar todo el proyecto desde el launcher: **Leer README.md del launcher**](#esto-no-es-necesario-si-se-quiere-ejecutar-todo-el-proyecto-desde-el-launcher-leer-readmemd-del-launcher)
+    - [Migraciones de base de datos](#migraciones-de-base-de-datos)
+  - [Estructura del Proyecto](#estructura-del-proyecto)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## Descripción General
 
-```bash
-$ npm install
+Este microservicio centraliza la gestión del ciclo de vida de los usuarios del sistema. Maneja dos tipos de usuarios: **administradores** (con acceso al panel de gestión) y **empleados** (personal de la organización). La autenticación es delegada completamente a Supabase Auth, mientras que los datos del dominio (perfil, rol, estado laboral) se almacenan en la base de datos propia del microservicio.
+
+**Características destacadas:**
+- Invitación de empleados vía correo electrónico (Supabase invite flow)
+- Creación de administradores con credenciales y registro de autenticación
+- Gestión de estados laborales: `active`, `inactive`, `suspended`, `retired`, `invited`
+- Bloqueo/desbloqueo permanente de usuarios en Supabase Auth
+- Soporte de jerarquía de managers para empleados (estructura de reporte)
+- Metadatos de rol almacenados directamente en el token JWT de Supabase (`roleId`, `isAdmin`)
+
+---
+
+## Arquitectura y Módulos
+
+```
+AppModule
+└── UsersModule   → Gestión de empleados y administradores
 ```
 
-## Compile and run the project
+El módulo de usuarios unifica la operación sobre dos entidades (`employees`, `administrators`) con sus respectivas interacciones con Supabase Auth y la base de datos local.
 
-```bash
-# development
-$ npm run start
+`Controller (MessagePattern) → Service → Prisma + Supabase Admin SDK`
 
-# watch mode
-$ npm run start:dev
+---
 
-# production mode
-$ npm run start:prod
+## Modelos de Base de Datos
+
+### `administrators`
+Cuenta de administrador del sistema con acceso completo al panel de gestión.
+
+| Campo         | Tipo            | Descripción                                   |
+|---------------|-----------------|-----------------------------------------------|
+| `id`          | `String` (UUID) | Identificador único                           |
+| `email`       | `String`        | Correo electrónico (único)                    |
+| `name`        | `String`        | Nombre completo                               |
+| `age`         | `Int`           | Edad                                          |
+| `user_id`     | `String`        | Referencia al registro en Supabase Auth       |
+| `created_at`  | `DateTime`      | Fecha de creación                             |
+
+### `employees`
+Empleado de la organización con datos laborales y de perfil.
+
+| Campo           | Tipo                  | Descripción                                        |
+|-----------------|-----------------------|----------------------------------------------------|
+| `id`            | `String` (UUID)       | Identificador único                                |
+| `email`         | `String`              | Correo electrónico (único)                         |
+| `name`          | `String`              | Nombre completo                                    |
+| `position_id`   | `String`              | Cargo asignado (referencia a `administrative-data-ms`) |
+| `manager_id`    | `String?`             | ID del empleado que es su manager directo          |
+| `admin_id`      | `String`              | Administrador responsable del empleado             |
+| `user_id`       | `String?`             | Referencia al registro en Supabase Auth (asignado al aceptar invitación) |
+| `status`        | `employee_status`     | Estado laboral actual                              |
+| `created_at`    | `DateTime`            | Fecha de creación                                  |
+
+**Estados de empleado:** `active`, `inactive`, `suspended`, `retired`, `invited`
+
+### `users` (Supabase Auth Schema)
+Tabla gestionada por Supabase Auth. El microservicio la referencia via relación pero no la modifica directamente — toda interacción se hace a través del SDK de Supabase Admin.
+
+---
+
+## Mensajes NATS (API Interna)
+
+Todos los mensajes se envían con el patrón `{ cmd: '<accion>' }`.
+
+### Empleados
+
+| `cmd`               | Payload                              | Descripción                                                   |
+|---------------------|--------------------------------------|---------------------------------------------------------------|
+| `inviteUser`        | `InviteUserDto`                      | Enviar invitación a un empleado vía Supabase. Crea el registro con estado `invited`. |
+| `findAllUsers`      | `PaginationDto`                      | Listar todos los empleados con paginación                     |
+| `findUserById`      | `{ id: string }`                     | Obtener empleado por ID                                       |
+| `blockUser`         | `{ id: string }`                     | Bloquear empleado (ban permanente en Supabase + estado `suspended`) |
+| `unblockUser`       | `{ id: string }`                     | Desbloquear empleado (remoción del ban en Supabase + estado `active`) |
+
+### Administradores
+
+| `cmd`               | Payload                              | Descripción                                                   |
+|---------------------|--------------------------------------|---------------------------------------------------------------|
+| `createAdmin`       | `CreateAdminDto`                     | Crear administrador con cuenta en Supabase Auth               |
+| `findAllAdmins`     | `PaginationDto`                      | Listar todos los administradores con paginación               |
+| `findAdminById`     | `{ id: string }`                     | Obtener administrador por ID                                  |
+
+---
+
+## Flujo de Autenticación
+
+### Invitación de Empleado
+```
+Gateway → inviteUser →  users-ms
+                          ├── Crea registro en DB (status: invited)
+                          └── Llama supabase.auth.admin.inviteUserByEmail()
+                                └── Supabase envía correo de invitación al empleado
+                                      └── Empleado acepta → user_id se vincula al registro
 ```
 
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+### Creación de Administrador
+```
+Gateway → createAdmin → users-ms
+                          ├── Llama supabase.auth.admin.createUser()
+                          │     └── user_metadata: { isAdmin: true }
+                          └── Crea registro en DB vinculado al user_id de Supabase
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+### Bloqueo de Usuario
+```
+Gateway → blockUser → users-ms
+                        ├── Llama supabase.auth.admin.updateUserById(id, { ban_duration: 'none' })
+                        └── Actualiza status del empleado a 'suspended' en DB
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Los tokens JWT emitidos por Supabase incluyen `user_metadata.roleId` (para empleados) o `user_metadata.isAdmin: true` (para administradores), permitiendo al Gateway validar permisos sin consultar este microservicio en cada request.
 
-## Resources
+---
 
-Check out a few resources that may come in handy when working with NestJS:
+## Variables de Entorno
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+| Variable              | Descripción                                              |
+|-----------------------|----------------------------------------------------------|
+| `PORT`                | Puerto interno del microservicio (default: `3002`)       |
+| `NATS_SERVERS`        | URL del servidor NATS (ej: `nats://nats-server:4222`)    |
+| `DATABASE_URL`        | Cadena de conexión PostgreSQL (Supabase)                 |
+| `SUPABASE_URL`        | URL del proyecto Supabase                               |
+| `DATABASE_KEY`        | Clave pública (`anon key`) de Supabase                  |
+| `DATABASE_ADMIN_KEY`  | Clave de servicio (`service_role key`) — solo servidor  |
 
-## Support
+> **Importante:** `DATABASE_ADMIN_KEY` es la clave `service_role` de Supabase. Nunca debe exponerse al cliente. Se usa exclusivamente para operaciones administrativas (invitar usuarios, crear cuentas, ban).
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+---
 
-## Stay in touch
+## Instalación y Ejecución
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Modo desarrollo (local)
 
-## License
+```bash
+npm install
+npm run start:dev
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+### Modo Docker (recomendado)
+#### Esto no es necesario si se quiere ejecutar todo el proyecto desde el launcher: **Leer README.md del launcher**
+
+
+```bash
+# Desde la raíz del launcher
+docker compose up users-ms
+```
+
+### Migraciones de base de datos
+
+```bash
+npx prisma db pull
+npx prisma generate
+```
+
+---
+
+## Estructura del Proyecto
+
+```
+src/
+├── main.ts                             # Bootstrap como microservicio NATS
+├── app.module.ts                       # Módulo raíz
+├── users/
+│   ├── users.controller.ts             # MessagePatterns de usuarios
+│   ├── users.service.ts                # Lógica de negocio + Supabase Admin
+│   ├── users.module.ts
+│   ├── dto/
+│   │   ├── invite-user.dto.ts          # Datos para invitar empleado
+│   │   ├── create-admin.dto.ts         # Datos para crear administrador
+│   │   ├── update-user.dto.ts
+│   │   └── index.ts
+│   └── enums/
+│       └── status.enum.ts              # Estados del empleado
+├── lib/
+│   ├── prisma.ts                       # PrismaClient con adaptador pg
+│   └── supabase/
+│       └── supabase.ts                 # Cliente Supabase con service_role key
+├── config/
+│   ├── envs.ts                         # Validación de variables de entorno (Joi)
+│   ├── index.ts
+│   └── services.ts                     # Constante NATS_SERVICE
+├── transports/
+│   └── nats.module.ts                  # ClientsModule NATS
+└── common/
+    ├── dto/pagination.dto.ts
+    ├── exceptions/rpc-custom-exception.filter.ts
+    └── index.ts
+```
