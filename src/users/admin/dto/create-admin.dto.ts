@@ -1,5 +1,4 @@
 import { IsEmail, IsEnum, IsInt, IsOptional, IsString } from 'class-validator';
-import { StatusEmployeeListDto } from '../enums/status.enum';
 
 export class CreateAdminDto {
   @IsEmail()
