@@ -3,7 +3,7 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AdminService } from './admin.service';
 import { 
   CreateAdminDto
- } from '@/src/users/admin/dto';
+ } from '@/src/admin/dto';
 import { PaginationDto } from '@/src/common';
 
 @Controller()
