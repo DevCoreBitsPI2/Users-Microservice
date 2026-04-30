@@ -10,7 +10,7 @@ import { NATS_SERVICE } from '@/src/config/services';
 import { ClientProxy } from '@nestjs/microservices';
 import { PrismaService } from '@/src/lib/prisma';
 import { Logger } from '@nestjs/common';
-import { CreateAdminDto } from '@/src/users/admin/dto';
+import { CreateAdminDto } from '@/src/admin/dto';
 import { RpcException } from '@nestjs/microservices';
 import { PaginationDto } from '@/src/common';
 import { supabase } from '@/src/lib/supabase/supabase';
