@@ -45,7 +45,7 @@ export class AdminService {
       const userId = data.user.id;
 
       await supabase.auth.admin.updateUserById(userId, {
-        app_metadata: { isAdmin: true }, // Se ingresa esto para que en el token que genera Supabase, esté incluido que es Admin.
+        app_metadata: { isAdmin: true, rolId: null }, // Se ingresa esto para que en el token que genera Supabase, esté incluido que es Admin. También el rolId se pone null para consistencia.
       });
 
       const authId = data.user.id;

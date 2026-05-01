@@ -43,7 +43,7 @@ export class UsersService {
       const userId = data.user.id;
 
       await supabase.auth.admin.updateUserById(userId, {
-        app_metadata: { roleId: inviteUserDto.id_position }, // Se ingresa esto para que en el token que genera Supabase, esté incluido el ID del cargo al está asociado.
+        app_metadata: { roleId: inviteUserDto.id_position, isAdmin: false }, // Se ingresa esto para que en el token que genera Supabase, esté incluido el ID del cargo al está asociado. Se pone isAdmin en false para consistencia, ya que este endpoint es solo para invitar empleados, no administradores.
       });
 
       const authId = data.user.id;
