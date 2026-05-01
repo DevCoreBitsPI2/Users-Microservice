@@ -53,6 +53,9 @@ export class AuthService {
       const { email } = loginOtpDto;
       const { data, error } = await supabase.auth.signInWithOtp({
         email: email,
+        options: {
+          shouldCreateUser: false,
+        },
       });
 
       return data;
@@ -76,7 +79,11 @@ export class AuthService {
         type: 'email',
       });
 
-      return session
+      return {
+        position: session?.user.app_metadata.rolId,
+        isAdmin: session?.user.app_metadata.isAdmin,
+        token: session?.access_token,
+      };
     } catch (error) {
       if (error instanceof Error) {
         throw new InternalServerErrorException(error.message);
