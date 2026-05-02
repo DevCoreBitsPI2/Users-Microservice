@@ -1,40 +1,98 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { UsersService } from './users.service';
-import { InviteUserDto, UpdateProfileDto } from '@/src/employees/dto';
-import { PaginationDto } from '@/src/common';
+import {
+  InviteUserDto,
+  UpdateProfileDto,
+  UpdateEmployeeDto,
+  FilterEmployeesDto,
+  EmployeeIdDto,
+  SupabaseUserDto,
+} from '@/src/employees/dto';
 
 @Controller()
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  /**
+   * Invita a un nuevo empleado por email.
+   * Crea el usuario en Supabase y el registro en la tabla `employees`.
+   *
+   * @pattern { cmd: 'inviteUser' }
+   * @payload InviteUserDto - { email, first_name, last_name, age, code, status, id_position, id_administrator, id_manager? }
+   */
   @MessagePattern({ cmd: 'inviteUser' })
   inviteUser(@Payload() inviteUserDto: InviteUserDto) {
     return this.usersService.inviteUser(inviteUserDto);
   }
 
+  /**
+   * Retorna una lista paginada de empleados con filtros opcionales.
+   * Soporta filtrar por `status`, `id_position`, `id_manager` e `id_administrator`.
+   *
+   * @pattern { cmd: 'findAllUsers' }
+   * @payload FilterEmployeesDto - { page?, limit?, status?, id_position?, id_manager?, id_administrator? }
+   */
   @MessagePattern({ cmd: 'findAllUsers' })
-  findAll(@Payload() paginationDto: PaginationDto) {
-    return this.usersService.findAll(paginationDto);
+  findAll(@Payload() filterDto: FilterEmployeesDto) {
+    return this.usersService.findAll(filterDto);
   }
 
+  /**
+   * Busca un empleado por su ID interno (`id_employee`).
+   *
+   * @pattern { cmd: 'findUserById' }
+   * @payload number - ID del empleado
+   */
   @MessagePattern({ cmd: 'findUserById' })
   findOne(@Payload() id: number) {
     return this.usersService.findOne(id);
   }
 
-  // @MessagePattern('updateUser')
-  // update(@Payload() updateUserDto: UpdateUserDto) {
-  //   return this.usersService.update(updateUserDto.id, updateUserDto);
-  // }
+  /**
+   * Retorna el perfil del empleado autenticado a partir de su UUID de Supabase.
+   * Pensado para ser llamado con el `supabase_user_id` extraído del token JWT.
+   *
+   * @pattern { cmd: 'getMyProfile' }
+   * @payload SupabaseUserDto - { supabase_user_id: string (UUID) }
+   */
+  @MessagePattern({ cmd: 'getMyProfile' })
+  getMyProfile(@Payload() supabaseUserDto: SupabaseUserDto) {
+    return this.usersService.getMyProfile(supabaseUserDto);
+  }
 
+  /**
+   * Retorna los subordinados directos de un empleado (quienes lo tienen como manager).
+   *
+   * @pattern { cmd: 'getSubordinates' }
+   * @payload EmployeeIdDto - { id_employee: number }
+   */
+  @MessagePattern({ cmd: 'getSubordinates' })
+  getSubordinates(@Payload() employeeIdDto: EmployeeIdDto) {
+    return this.usersService.getSubordinates(employeeIdDto);
+  }
+
+  /**
+   * Permite al propio empleado actualizar su foto de perfil y/o edad.
+   * No permite modificar otros campos del registro.
+   *
+   * @pattern { cmd: 'updateProfile' }
+   * @payload UpdateProfileDto - { id_employee, photo_url?, age? }
+   */
   @MessagePattern({ cmd: 'updateProfile' })
   updateProfile(@Payload() updateProfileDto: UpdateProfileDto) {
     return this.usersService.updateProfile(updateProfileDto);
   }
 
-  // @MessagePattern('blockUser')
-  // remove(@Payload() id: number) {
-  //   return this.usersService.block(id);
-  // }
+  /**
+   * Permite a un administrador actualizar datos operativos de un empleado:
+   * cargo (`id_position`), manager (`id_manager`) y/o estado (`status`).
+   *
+   * @pattern { cmd: 'updateEmployee' }
+   * @payload UpdateEmployeeDto - { id_employee, id_position?, id_manager?, status? }
+   */
+  @MessagePattern({ cmd: 'updateEmployee' })
+  updateEmployee(@Payload() updateEmployeeDto: UpdateEmployeeDto) {
+    return this.usersService.updateEmployee(updateEmployeeDto);
+  }
 }
