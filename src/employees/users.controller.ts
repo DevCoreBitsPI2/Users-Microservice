@@ -6,7 +6,6 @@ import {
   UpdateProfileDto,
   UpdateEmployeeDto,
   FilterEmployeesDto,
-
 } from '@/src/employees/dto';
 
 @Controller()
@@ -93,5 +92,15 @@ export class UsersController {
   @MessagePattern({ cmd: 'updateEmployee' })
   updateEmployee(@Payload() updateEmployeeDto: UpdateEmployeeDto) {
     return this.usersService.updateEmployee(updateEmployeeDto);
+  }
+
+  @MessagePattern({ cmd: 'firstTimeSetup' })
+  firstTimeSetup(@Payload() idSupabase: string) {
+    return this.usersService.firstTimeSetup(idSupabase);
+  }
+
+  @MessagePattern({ cmd: 'completeFirstLogin' })
+  completeFirstTimeSetup(@Payload() idSupabase: string) {
+    return this.usersService.completeFirstTimeSetup(idSupabase);
   }
 }

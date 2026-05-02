@@ -73,6 +73,7 @@ export class UsersService {
             nombre: inviteUserDto.first_name,
             rol: cargo.name,
           },
+          redirectTo: 'http://localhost:3001/signup',
         },
       );
 
@@ -93,8 +94,9 @@ export class UsersService {
         app_metadata: {
           roleId: inviteUserDto.id_position,
           isAdmin: false,
+          mustSetPassword: true,
         },
-      });
+      }); 
 
       // 5. Crear usuario en base de datos
       const user = await this.prisma.employees.create({
@@ -326,5 +328,25 @@ export class UsersService {
 
     this.logger.log(`Perfil actualizado: empleado #${id_employee}`);
     return updated;
+  }
+
+  async firstTimeSetup(idSupabase: string) {
+    const { data: userData } =
+      await supabase.auth.admin.getUserById(idSupabase);
+
+    const mustSetPassword =
+      userData.user.app_metadata?.mustSetPassword ?? false;
+
+    return { isFirstLogin: mustSetPassword };
+  }
+
+  async completeFirstTimeSetup(idSupabase: string) {
+    await supabase.auth.admin.updateUserById(idSupabase, {
+      app_metadata: {
+        mustSetPassword: false,
+      },
+    });
+
+    return { ok: true };
   }
 }
