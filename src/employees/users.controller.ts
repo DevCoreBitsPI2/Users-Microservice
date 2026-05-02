@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { UsersService } from './users.service';
-import { InviteUserDto } from '@/src/employees/dto';
+import { InviteUserDto, UpdateProfileDto } from '@/src/employees/dto';
 import { PaginationDto } from '@/src/common';
 
 @Controller()
@@ -27,6 +27,11 @@ export class UsersController {
   // update(@Payload() updateUserDto: UpdateUserDto) {
   //   return this.usersService.update(updateUserDto.id, updateUserDto);
   // }
+
+  @MessagePattern({ cmd: 'updateProfile' })
+  updateProfile(@Payload() updateProfileDto: UpdateProfileDto) {
+    return this.usersService.updateProfile(updateProfileDto);
+  }
 
   // @MessagePattern('blockUser')
   // remove(@Payload() id: number) {

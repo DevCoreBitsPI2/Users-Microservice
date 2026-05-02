@@ -10,7 +10,7 @@ import { NATS_SERVICE } from '@/src/config/services';
 import { ClientProxy } from '@nestjs/microservices';
 import { PrismaService } from '@/src/lib/prisma';
 import { Logger } from '@nestjs/common';
-import { InviteUserDto } from '@/src/employees/dto';
+import { InviteUserDto, UpdateProfileDto } from '@/src/employees/dto';
 import { RpcException } from '@nestjs/microservices';
 import { PaginationDto } from '@/src/common';
 import { supabase } from '@/src/lib/supabase/supabase';
@@ -121,4 +121,32 @@ export class UsersService {
   /* update(id: number, updateUserDto: UpdateUserDto) {
     return `This action updates a #${id} user`;
   } */
+
+  async updateProfile(updateProfileDto: UpdateProfileDto) {
+    const { id_employee, ...data } = updateProfileDto;
+
+    const employee = await this.prisma.employees.findUnique({
+      where: { id_employee },
+    });
+
+    if (!employee) {
+      throw new NotFoundException(
+        'No se ha encontrado registro del funcionario.',
+      );
+    }
+
+    const updated = await this.prisma.employees.update({
+      where: { id_employee },
+      data,
+      select: {
+        id_employee: true,
+        email: true,
+        age: true,
+        photo_url: true,
+      },
+    });
+
+    this.logger.log(`Perfil actualizado: empleado #${id_employee}`);
+    return updated;
+  }
 }
