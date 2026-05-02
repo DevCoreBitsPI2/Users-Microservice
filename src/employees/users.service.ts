@@ -4,14 +4,15 @@ import { NATS_SERVICE } from '@/src/config/services';
 import { ClientProxy } from '@nestjs/microservices';
 import { PrismaService } from '@/src/lib/prisma';
 import { Logger } from '@nestjs/common';
+import { firstValueFrom } from 'rxjs';
 import {
   InviteUserDto,
   UpdateProfileDto,
   UpdateEmployeeDto,
   FilterEmployeesDto,
-
 } from '@/src/employees/dto';
 import { supabase } from '@/src/lib/supabase/supabase';
+import { identity } from 'rxjs';
 
 /*
 NotFoundException lanza automáticamente el error 404.
@@ -40,24 +41,62 @@ export class UsersService {
    */
   async inviteUser(inviteUserDto: InviteUserDto) {
     try {
-      const { data, error } = await supabase.auth.admin.inviteUserByEmail(
-        inviteUserDto.email,
-      );
-
-      if (error || !data?.user) {
-        throw new InternalServerErrorException('Error invitando usuario');
-      }
-
-      const userId = data.user.id;
-
-      await supabase.auth.admin.updateUserById(userId, {
-        // Se ingresa esto para que en el token que genera Supabase esté incluido el ID del cargo
-        // al que está asociado. Se pone isAdmin en false para consistencia, ya que este endpoint
-        // es solo para invitar empleados, no administradores.
-        app_metadata: { roleId: inviteUserDto.id_position, isAdmin: false },
+      // 1. Verificar si el usuario ya existe
+      const existingUser = await this.prisma.employees.findUnique({
+        where: { email: inviteUserDto.email },
       });
 
+      if (existingUser) {
+        throw new InternalServerErrorException(
+          'Ya existe un usuario con ese correo electrónico.',
+        );
+      }
+
+      // 2. Obtener el cargo desde el microservicio
+      const cargo = await firstValueFrom(
+        this.client.send({ cmd: 'findOnePosition' }, inviteUserDto.id_position),
+      );
+
+      if (!cargo) {
+        throw new InternalServerErrorException('Cargo no encontrado');
+      }
+
+      if (!cargo?.name) {
+        throw new InternalServerErrorException('El cargo no tiene nombre');
+      }
+
+      // 3. Invitar usuario en Supabase
+      const { data, error } = await supabase.auth.admin.inviteUserByEmail(
+        inviteUserDto.email,
+        {
+          data: {
+            nombre: inviteUserDto.first_name,
+            rol: cargo.name,
+          },
+        },
+      );
+
+      if (error) {
+        throw new InternalServerErrorException(error.message);
+      }
+
+      if (!data?.user) {
+        throw new InternalServerErrorException(
+          'No se pudo crear el usuario en Auth',
+        );
+      }
+
       const authId = data.user.id;
+
+      // 4. Actualizar metadata
+      await supabase.auth.admin.updateUserById(authId, {
+        app_metadata: {
+          roleId: inviteUserDto.id_position,
+          isAdmin: false,
+        },
+      });
+
+      // 5. Crear usuario en base de datos
       const user = await this.prisma.employees.create({
         data: {
           email: inviteUserDto.email,
@@ -73,23 +112,20 @@ export class UsersService {
               connect: { id_employee: inviteUserDto.id_manager },
             },
           }),
+
           administrators: {
             connect: { id: inviteUserDto.id_administrator },
           },
+
           users: {
             connect: { id: authId },
           },
         },
       });
 
-      this.logger.log(`Usuario invitado: ${user.email}`);
       return user;
     } catch (error) {
-      if (error instanceof Error) {
-        throw new InternalServerErrorException(error.message);
-      }
-
-      throw new InternalServerErrorException('Error desconocido');
+      throw error;
     }
   }
 
