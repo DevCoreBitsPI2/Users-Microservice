@@ -9,8 +9,7 @@ import {
   UpdateProfileDto,
   UpdateEmployeeDto,
   FilterEmployeesDto,
-  EmployeeIdDto,
-  SupabaseUserDto,
+
 } from '@/src/employees/dto';
 import { supabase } from '@/src/lib/supabase/supabase';
 
@@ -166,9 +165,9 @@ export class UsersService {
    *   `photo_url`, `status`, `id_position`, `id_manager`.
    * @throws NotFoundException si no hay ningún empleado vinculado a ese UUID de Supabase.
    */
-  async getMyProfile({ supabase_user_id }: SupabaseUserDto) {
+  async getMyProfile(id: string) {
     const employee = await this.prisma.employees.findUnique({
-      where: { supabase_user_id },
+      where: { supabase_user_id: id },
       select: {
         id_employee: true,
         first_name: true,
@@ -199,9 +198,9 @@ export class UsersService {
    *   `email`, `status`, `id_position`, `photo_url`. Puede ser un array vacío si no tiene subordinados.
    * @throws NotFoundException si el empleado con ese ID no existe.
    */
-  async getSubordinates({ id_employee }: EmployeeIdDto) {
+  async getSubordinates(id: number) {
     const employee = await this.prisma.employees.findUnique({
-      where: { id_employee },
+      where: { id_employee: id },
     });
 
     if (!employee) {
@@ -211,7 +210,7 @@ export class UsersService {
     }
 
     return this.prisma.employees.findMany({
-      where: { id_manager: id_employee },
+      where: { id_manager: id },
       select: {
         id_employee: true,
         first_name: true,

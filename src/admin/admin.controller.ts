@@ -3,7 +3,6 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AdminService } from './admin.service';
 import { CreateAdminDto } from '@/src/admin/dto';
 import { PaginationDto } from '@/src/common';
-import { EmployeeIdDto } from '@/src/employees/dto';
 
 @Controller()
 export class AdminController {
@@ -71,11 +70,11 @@ export class AdminController {
    * No afecta el acceso en Supabase, es una medida administrativa reversible.
    *
    * @pattern { cmd: 'suspendEmployee' }
-   * @payload EmployeeIdDto - { id_employee: number }
+   * @payload number - ID del empleado (`id_employee`)
    */
   @MessagePattern({ cmd: 'suspendEmployee' })
-  suspendEmployee(@Payload() employeeIdDto: EmployeeIdDto) {
-    return this.adminService.suspendEmployee(employeeIdDto);
+  suspendEmployee(@Payload() id: number) {
+    return this.adminService.suspendEmployee(id);
   }
 
   /**
@@ -83,10 +82,10 @@ export class AdminController {
    * que aún no ha completado su registro.
    *
    * @pattern { cmd: 'resendInvitation' }
-   * @payload EmployeeIdDto - { id_employee: number }
+   * @payload number - ID del empleado (`id_employee`)
    */
   @MessagePattern({ cmd: 'resendInvitation' })
-  resendInvitation(@Payload() employeeIdDto: EmployeeIdDto) {
-    return this.adminService.resendInvitation(employeeIdDto);
+  resendInvitation(@Payload() id: number) {
+    return this.adminService.resendInvitation(id);
   }
 }

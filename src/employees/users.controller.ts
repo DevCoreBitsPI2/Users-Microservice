@@ -6,8 +6,7 @@ import {
   UpdateProfileDto,
   UpdateEmployeeDto,
   FilterEmployeesDto,
-  EmployeeIdDto,
-  SupabaseUserDto,
+
 } from '@/src/employees/dto';
 
 @Controller()
@@ -54,11 +53,11 @@ export class UsersController {
    * Pensado para ser llamado con el `supabase_user_id` extraído del token JWT.
    *
    * @pattern { cmd: 'getMyProfile' }
-   * @payload SupabaseUserDto - { supabase_user_id: string (UUID) }
+   * @payload string - UUID del usuario en Supabase
    */
   @MessagePattern({ cmd: 'getMyProfile' })
-  getMyProfile(@Payload() supabaseUserDto: SupabaseUserDto) {
-    return this.usersService.getMyProfile(supabaseUserDto);
+  getMyProfile(@Payload() id: string) {
+    return this.usersService.getMyProfile(id);
   }
 
   /**
@@ -68,8 +67,8 @@ export class UsersController {
    * @payload EmployeeIdDto - { id_employee: number }
    */
   @MessagePattern({ cmd: 'getSubordinates' })
-  getSubordinates(@Payload() employeeIdDto: EmployeeIdDto) {
-    return this.usersService.getSubordinates(employeeIdDto);
+  getSubordinates(@Payload() id: number) {
+    return this.usersService.getSubordinates(id);
   }
 
   /**

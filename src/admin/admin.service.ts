@@ -10,7 +10,6 @@ import { Logger } from '@nestjs/common';
 import { CreateAdminDto } from '@/src/admin/dto';
 import { PaginationDto } from '@/src/common';
 import { supabase } from '@/src/lib/supabase/supabase';
-import { EmployeeIdDto } from '@/src/employees/dto';
 
 /*
 NotFoundException lanza automáticamente el error 404.
@@ -203,9 +202,9 @@ export class AdminService {
    * @throws NotFoundException si no existe ningún empleado con ese ID.
    * @throws BadRequestException si el empleado ya se encuentra en estado `suspended`.
    */
-  async suspendEmployee({ id_employee }: EmployeeIdDto) {
+  async suspendEmployee(id: number) {
     const employee = await this.prisma.employees.findUnique({
-      where: { id_employee },
+      where: { id_employee: id  },
     });
 
     if (!employee) {
@@ -219,11 +218,11 @@ export class AdminService {
     }
 
     const updated = await this.prisma.employees.update({
-      where: { id_employee },
+      where: { id_employee: id },
       data: { status: 'suspended' },
     });
 
-    this.logger.log(`Empleado suspendido: #${id_employee}`);
+    this.logger.log(`Empleado suspendido: #${id}`);
     return updated;
   }
 
@@ -238,9 +237,9 @@ export class AdminService {
    * @throws BadRequestException si el empleado no está en estado `invited`.
    * @throws InternalServerErrorException si Supabase falla al reenviar el email.
    */
-  async resendInvitation({ id_employee }: EmployeeIdDto) {
+  async resendInvitation(id: number) {
     const employee = await this.prisma.employees.findUnique({
-      where: { id_employee },
+      where: { id_employee: id },
     });
 
     if (!employee) {
