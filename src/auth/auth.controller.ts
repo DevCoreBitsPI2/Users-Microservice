@@ -42,4 +42,9 @@ export class AuthController {
   verifyOtp(@Payload() verifyOtpDto: VerifyOtpDto) {
     return this.authService.verifyOtp(verifyOtpDto);
   }
+
+  @MessagePattern({ cmd: 'verifyToken' })
+  verifyToken(@Payload() token: string) {
+    return this.authService.verifyToken(token);
+  }
 }
