@@ -47,6 +47,11 @@ export class UsersController {
     return this.usersService.findOne(id);
   }
 
+  @MessagePattern({ cmd: 'findEmployeesByIds' })
+  findEmployeesByIds(@Payload() ids: number[]) {
+    return this.usersService.findEmployeesByIds(ids);
+  }
+
   /**
    * Retorna el perfil del empleado autenticado a partir de su UUID de Supabase.
    * Pensado para ser llamado con el `supabase_user_id` extraído del token JWT.
