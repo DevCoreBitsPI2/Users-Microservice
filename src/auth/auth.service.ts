@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { InternalServerErrorException } from '@nestjs/common';
+import { InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { NATS_SERVICE } from '@/src/config/services';
 import { ClientProxy } from '@nestjs/microservices';
 import { PrismaService } from '@/src/lib/prisma';
@@ -93,20 +93,62 @@ export class AuthService {
    */
   async verifyOtp(verifyOtpDto: VerifyOtpDto) {
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.verifyOtp({
+      const { data, error } = await supabase.auth.verifyOtp({
         email: verifyOtpDto.email,
         token: verifyOtpDto.token,
         type: 'email',
       });
 
+      if (error || !data.session) {
+        throw new UnauthorizedException(error?.message ?? 'Invalid OTP');
+      }
+
       return {
-        position: session?.user.app_metadata.rolId,
-        isAdmin: session?.user.app_metadata.isAdmin,
-        token: session?.access_token,
+        position: data.session.user.app_metadata.roleId ?? data.session.user.app_metadata.rolId,
+        isAdmin: data.session.user.app_metadata.isAdmin,
+        token: data.session.access_token,
       };
     } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      if (error instanceof Error) {
+        throw new InternalServerErrorException(error.message);
+      }
+
+      throw new InternalServerErrorException('Error desconocido');
+    }
+  }
+
+  /**
+   * Valida el JWT de sesión enviado por el gateway y extrae los metadatos
+   * necesarios para autorización.
+   */
+  async verifyToken(token: string) {
+    if (!token) {
+      throw new UnauthorizedException('Token not found');
+    }
+
+    try {
+      const { data, error } = await supabase.auth.getUser(token);
+
+      if (error || !data.user) {
+        throw new UnauthorizedException(error?.message ?? 'Invalid token');
+      }
+
+      const { app_metadata } = data.user;
+
+      return {
+        position: app_metadata.roleId ?? app_metadata.rolId,
+        isAdmin: Boolean(app_metadata.isAdmin),
+        token,
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
       if (error instanceof Error) {
         throw new InternalServerErrorException(error.message);
       }
