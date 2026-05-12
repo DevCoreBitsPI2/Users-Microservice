@@ -138,9 +138,16 @@ export class AuthService {
       }
 
       const { app_metadata } = data.user;
+      const supabaseUserId = data.user.id;
+      const employee = await this.prisma.employees.findUnique({
+        where: { supabase_user_id: supabaseUserId },
+        select: { id_employee: true, id_position: true },
+      });
 
       return {
-        position: app_metadata.roleId ?? app_metadata.rolId,
+        supabaseUserId,
+        employeeId: employee?.id_employee,
+        position: app_metadata.roleId ?? app_metadata.rolId ?? employee?.id_position,
         isAdmin: Boolean(app_metadata.isAdmin),
         token,
       };

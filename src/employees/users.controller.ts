@@ -3,6 +3,8 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { UsersService } from './users.service';
 import {
   InviteUserDto,
+  GenerateEmployeeQrDto,
+  ScanEmployeeQrDto,
   UpdateProfileDto,
   UpdateEmployeeDto,
   FilterEmployeesDto,
@@ -45,6 +47,16 @@ export class UsersController {
   @MessagePattern({ cmd: 'findUserById' })
   findOne(@Payload() id: number) {
     return this.usersService.findOne(id);
+  }
+
+  @MessagePattern({ cmd: 'generateEmployeeQr' })
+  generateEmployeeQr(@Payload() generateEmployeeQrDto: GenerateEmployeeQrDto) {
+    return this.usersService.generateEmployeeQr(generateEmployeeQrDto);
+  }
+
+  @MessagePattern({ cmd: 'scanEmployeeQr' })
+  scanEmployeeQr(@Payload() scanEmployeeQrDto: ScanEmployeeQrDto) {
+    return this.usersService.scanEmployeeQr(scanEmployeeQrDto);
   }
 
   @MessagePattern({ cmd: 'findEmployeesByIds' })

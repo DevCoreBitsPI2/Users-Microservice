@@ -1,18 +1,22 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InternalServerErrorException } from '@nestjs/common';
 import { NATS_SERVICE } from '@/src/config/services';
 import { ClientProxy } from '@nestjs/microservices';
 import { PrismaService } from '@/src/lib/prisma';
 import { Logger } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
+import { createHmac, timingSafeEqual } from 'crypto';
 import {
+  GenerateEmployeeQrDto,
   InviteUserDto,
+  ScanEmployeeQrDto,
   UpdateProfileDto,
   UpdateEmployeeDto,
   FilterEmployeesDto,
 } from '@/src/employees/dto';
 import { supabase } from '@/src/lib/supabase/supabase';
-import { identity } from 'rxjs';
+import { envs } from '@/src/config';
+import { C_LEVEL_POSITION_IDS, LEAD_POSITION_IDS } from '@/src/employees/enums/position.enum';
 
 /*
 NotFoundException lanza automáticamente el error 404.
@@ -23,6 +27,8 @@ Usando las clases directamente se lanzan solos sin hacer HttpException. */
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger('users service');
+  private readonly employeeQrPurpose = 'employee-qr';
+  private readonly employeeQrTtlSeconds = 15 * 60;
 
   constructor(
     @Inject(NATS_SERVICE) private readonly client: ClientProxy,
@@ -191,6 +197,169 @@ export class UsersService {
     }
 
     return user;
+  }
+
+  async generateEmployeeQr(generateEmployeeQrDto: GenerateEmployeeQrDto) {
+    const employee = await this.prisma.employees.findUnique({
+      where: { id_employee: generateEmployeeQrDto.id_employee },
+      select: { id_employee: true },
+    });
+
+    if (!employee) {
+      throw new NotFoundException('No se ha encontrado registro del funcionario.');
+    }
+
+    if (
+      !generateEmployeeQrDto.scannerIsAdmin &&
+      generateEmployeeQrDto.scannerEmployeeId !== employee.id_employee
+    ) {
+      throw new ForbiddenException('No tiene permisos para generar este código QR.');
+    }
+
+    const expiresAt = new Date(Date.now() + this.employeeQrTtlSeconds * 1000);
+    const qrToken = this.signEmployeeQrToken(employee.id_employee, expiresAt);
+
+    return {
+      qrToken,
+      expiresAt,
+    };
+  }
+
+  async scanEmployeeQr(scanEmployeeQrDto: ScanEmployeeQrDto) {
+    const payload = this.verifyEmployeeQrToken(scanEmployeeQrDto.qrToken);
+    const employee = await this.prisma.employees.findUnique({
+      where: { id_employee: payload.employeeId },
+      select: {
+        id_employee: true,
+        first_name: true,
+        last_name: true,
+        age: true,
+        email: true,
+        code: true,
+        status: true,
+        id_position: true,
+        photo_url: true,
+        id_manager: true,
+        id_administrator: true,
+      },
+    });
+
+    if (!employee) {
+      throw new NotFoundException('No se ha encontrado registro del funcionario.');
+    }
+
+    const visibilityLevel = this.resolveQrVisibilityLevel(employee, scanEmployeeQrDto);
+
+    return {
+      visibilityLevel,
+      employee: this.pickEmployeeQrFields(employee, visibilityLevel),
+    };
+  }
+
+  private signEmployeeQrToken(employeeId: number, expiresAt: Date): string {
+    const payload = {
+      employeeId,
+      purpose: this.employeeQrPurpose,
+      exp: Math.floor(expiresAt.getTime() / 1000),
+    };
+
+    const encodedPayload = this.base64UrlEncode(JSON.stringify(payload));
+    const signature = this.sign(encodedPayload);
+
+    return `${encodedPayload}.${signature}`;
+  }
+
+  private verifyEmployeeQrToken(token: string): { employeeId: number; purpose: string; exp: number } {
+    const [encodedPayload, signature] = token.split('.');
+
+    if (!encodedPayload || !signature) {
+      throw new BadRequestException('Invalid QR token');
+    }
+
+    const expectedSignature = this.sign(encodedPayload);
+    const received = Buffer.from(signature);
+    const expected = Buffer.from(expectedSignature);
+
+    if (received.length !== expected.length || !timingSafeEqual(received, expected)) {
+      throw new BadRequestException('Invalid QR token');
+    }
+
+    const payload = JSON.parse(this.base64UrlDecode(encodedPayload));
+
+    if (payload.purpose !== this.employeeQrPurpose || !Number.isInteger(payload.employeeId)) {
+      throw new BadRequestException('Invalid QR token');
+    }
+
+    if (Date.now() >= payload.exp * 1000) {
+      throw new UnauthorizedException('QR token expired');
+    }
+
+    return payload;
+  }
+
+  private sign(value: string): string {
+    return createHmac('sha256', envs.qrTokenSecret).update(value).digest('base64url');
+  }
+
+  private base64UrlEncode(value: string): string {
+    return Buffer.from(value, 'utf8').toString('base64url');
+  }
+
+  private base64UrlDecode(value: string): string {
+    return Buffer.from(value, 'base64url').toString('utf8');
+  }
+
+  private resolveQrVisibilityLevel(
+    employee: { id_employee: number; id_manager: number | null },
+    scanner: ScanEmployeeQrDto,
+  ): 'full' | 'manager' | 'self' | 'basic' {
+    if (scanner.scannerIsAdmin) return 'full';
+    if (C_LEVEL_POSITION_IDS.includes(scanner.scannerPosition)) return 'full';
+    if (scanner.scannerEmployeeId === employee.id_employee) return 'self';
+    if (scanner.scannerEmployeeId && scanner.scannerEmployeeId === employee.id_manager) return 'manager';
+    if (LEAD_POSITION_IDS.includes(scanner.scannerPosition)) return 'manager';
+
+    return 'basic';
+  }
+
+  private pickEmployeeQrFields(employee: any, visibilityLevel: 'full' | 'manager' | 'self' | 'basic') {
+    if (visibilityLevel === 'full') return employee;
+
+    if (visibilityLevel === 'manager') {
+      return {
+        id_employee: employee.id_employee,
+        first_name: employee.first_name,
+        last_name: employee.last_name,
+        email: employee.email,
+        status: employee.status,
+        id_position: employee.id_position,
+        id_manager: employee.id_manager,
+        photo_url: employee.photo_url,
+      };
+    }
+
+    if (visibilityLevel === 'self') {
+      return {
+        id_employee: employee.id_employee,
+        first_name: employee.first_name,
+        last_name: employee.last_name,
+        age: employee.age,
+        email: employee.email,
+        code: employee.code,
+        status: employee.status,
+        id_position: employee.id_position,
+        photo_url: employee.photo_url,
+      };
+    }
+
+    return {
+      id_employee: employee.id_employee,
+      first_name: employee.first_name,
+      last_name: employee.last_name,
+      status: employee.status,
+      id_position: employee.id_position,
+      photo_url: employee.photo_url,
+    };
   }
 
   async findEmployeesByIds(ids: number[]) {
