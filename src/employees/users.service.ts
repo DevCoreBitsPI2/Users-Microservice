@@ -193,6 +193,48 @@ export class UsersService {
     return user;
   }
 
+  async findEmployeesByPositionIds(positionIds: number[]) {
+    const uniqueIds = [...new Set(positionIds)].filter((id) => Number.isInteger(id));
+
+    if (uniqueIds.length === 0) {
+      return [];
+    }
+
+    return this.prisma.employees.findMany({
+      where: {
+        id_position: { in: uniqueIds },
+        status: 'active',
+      },
+      select: {
+        id_employee: true,
+        first_name: true,
+        last_name: true,
+        email: true,
+        id_position: true,
+      },
+    });
+  }
+
+  async findEmployeesByIds(ids: number[]) {
+    const uniqueIds = [...new Set(ids)].filter((id) => Number.isInteger(id));
+
+    if (uniqueIds.length === 0) {
+      return [];
+    }
+
+    return this.prisma.employees.findMany({
+      where: {
+        id_employee: { in: uniqueIds },
+      },
+      select: {
+        id_employee: true,
+        first_name: true,
+        last_name: true,
+        email: true,
+      },
+    });
+  }
+
   /**
    * Retorna el perfil del empleado autenticado a partir de su ID de Supabase.
    * Pensado para que el propio empleado consulte sus datos desde el token de sesión.

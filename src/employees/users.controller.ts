@@ -6,6 +6,7 @@ import {
   UpdateProfileDto,
   UpdateEmployeeDto,
   FilterEmployeesDto,
+  FilterByPositionIdsDto,
 } from '@/src/employees/dto';
 
 @Controller()
@@ -45,6 +46,16 @@ export class UsersController {
   @MessagePattern({ cmd: 'findUserById' })
   findOne(@Payload() id: number) {
     return this.usersService.findOne(id);
+  }
+
+  @MessagePattern({ cmd: 'findEmployeesByPositionIds' })
+  findEmployeesByPositionIds(@Payload() dto: FilterByPositionIdsDto) {
+    return this.usersService.findEmployeesByPositionIds(dto.positionIds);
+  }
+
+  @MessagePattern({ cmd: 'findEmployeesByIds' })
+  findEmployeesByIds(@Payload() ids: number[]) {
+    return this.usersService.findEmployeesByIds(ids);
   }
 
   /**
