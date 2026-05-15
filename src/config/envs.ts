@@ -8,6 +8,7 @@ interface EnvVars {
   DATABASE_KEY: string;
   DATABASE_ADMIN_KEY: string;
   NATS_SERVERS: string[];
+  QR_TOKEN_SECRET?: string;
 }
 
 const envsSchema = joi
@@ -18,6 +19,7 @@ const envsSchema = joi
     DATABASE_KEY: joi.string().required(),
     DATABASE_ADMIN_KEY: joi.string().required(),
     NATS_SERVERS: joi.array().items(joi.string()).required(),
+    QR_TOKEN_SECRET: joi.string().optional(),
   })
   .unknown(true);
 
@@ -38,4 +40,5 @@ export const envs = {
   databaseKey: envVars.DATABASE_KEY,
   databaseAdminKey: envVars.DATABASE_ADMIN_KEY,
   natsServers: envVars.NATS_SERVERS,
+  qrTokenSecret: envVars.QR_TOKEN_SECRET ?? envVars.DATABASE_ADMIN_KEY,
 };

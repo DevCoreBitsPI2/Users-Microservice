@@ -3,9 +3,12 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { UsersService } from './users.service';
 import {
   InviteUserDto,
+  GenerateEmployeeQrDto,
+  ScanEmployeeQrDto,
   UpdateProfileDto,
   UpdateEmployeeDto,
   FilterEmployeesDto,
+  FilterByPositionIdsDto,
 } from '@/src/employees/dto';
 
 @Controller()
@@ -46,12 +49,24 @@ export class UsersController {
   findOne(@Payload() id: number) {
     return this.usersService.findOne(id);
   }
+  @MessagePattern({ cmd: 'generateEmployeeQr' })
+  generateEmployeeQr(@Payload() generateEmployeeQrDto: GenerateEmployeeQrDto) {
+    return this.usersService.generateEmployeeQr(generateEmployeeQrDto);
+  }
+
+  @MessagePattern({ cmd: 'scanEmployeeQr' })
+  scanEmployeeQr(@Payload() scanEmployeeQrDto: ScanEmployeeQrDto) {
+    return this.usersService.scanEmployeeQr(scanEmployeeQrDto);
+  }
 
   @MessagePattern({ cmd: 'findEmployeesByIds' })
   findEmployeesByIds(@Payload() ids: number[]) {
     return this.usersService.findEmployeesByIds(ids);
   }
-
+    @MessagePattern({ cmd: 'findEmployeesByPositionIds' })
+  findEmployeesByPositionIds(@Payload() dto: FilterByPositionIdsDto) {
+    return this.usersService.findEmployeesByPositionIds(dto.positionIds);
+  }
   /**
    * Retorna el perfil del empleado autenticado a partir de su UUID de Supabase.
    * Pensado para ser llamado con el `supabase_user_id` extraído del token JWT.
