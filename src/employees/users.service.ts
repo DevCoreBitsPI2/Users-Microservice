@@ -248,8 +248,12 @@ export class UsersService {
     }
 
     const visibilityLevel = this.resolveQrVisibilityLevel(employee, scanEmployeeQrDto);
+    const enabled = employee.status === 'active';
 
     return {
+      enabled,
+      status: employee.status,
+      message: enabled ? null : 'Employee is not currently enabled',
       visibilityLevel,
       employee: this.pickEmployeeQrFields(employee, visibilityLevel),
     };
@@ -497,8 +501,59 @@ export class UsersService {
       data,
     });
 
+    if (data.id_position !== undefined && data.id_position !== employee.id_position) {
+      const [previousPosition, newPosition] = await Promise.all([
+        firstValueFrom(this.client.send({ cmd: 'findOnePosition' }, employee.id_position)),
+        firstValueFrom(this.client.send({ cmd: 'findOnePosition' }, data.id_position)),
+      ]);
+
+      await this.createCareerHistory({
+        id_employee,
+        type: this.resolvePositionChangeType(previousPosition, newPosition),
+        description: `Cambio de cargo de ${previousPosition.name} a ${newPosition.name}`,
+      });
+    }
+
+    if (data.id_manager !== undefined && data.id_manager !== employee.id_manager) {
+      await this.createCareerHistory({
+        id_employee,
+        type: 'transfer',
+        description: `Cambio de jefe directo de ${employee.id_manager ?? 'sin jefe'} a ${data.id_manager ?? 'sin jefe'}`,
+      });
+    }
+
     this.logger.log(`Empleado actualizado por admin: #${id_employee}`);
     return updated;
+  }
+
+  private resolvePositionChangeType(
+    previousPosition: { id_area?: number; base_salary?: number | null },
+    newPosition: { id_area?: number; base_salary?: number | null },
+  ): 'promotion' | 'transfer' {
+    if (previousPosition.id_area !== newPosition.id_area) return 'transfer';
+
+    const previousSalary = previousPosition.base_salary ?? 0;
+    const newSalary = newPosition.base_salary ?? 0;
+
+    if (newSalary > previousSalary) return 'promotion';
+
+    return 'transfer';
+  }
+
+  private async createCareerHistory(payload: {
+    id_employee: number;
+    type: 'promotion' | 'transfer' | 'contract_modification' | 'salary_change' | 'evaluation';
+    description: string;
+  }) {
+    await firstValueFrom(
+      this.client.send(
+        { cmd: 'createCareerHistory' },
+        {
+          ...payload,
+          event_date: new Date(),
+        },
+      ),
+    );
   }
 
   /**
