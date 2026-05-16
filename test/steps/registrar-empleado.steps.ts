@@ -212,9 +212,12 @@ defineFeature(feature, (test) => {
       }
     });
 
-    then('el sistema retorna un error de validacion indicando el campo requerido', () => {
-      expect(thrownError).toBeDefined();
-    });
+    then(
+      'el sistema retorna un error de validacion indicando el campo requerido',
+      () => {
+        expect(thrownError).toBeDefined();
+      },
+    );
 
     and('no se crea ningun registro en la base de datos', () => {
       expect(mockPrismaService.employees.create).not.toHaveBeenCalled();
@@ -261,9 +264,12 @@ defineFeature(feature, (test) => {
       }
     });
 
-    then('el sistema retorna un error de validacion indicando el campo requerido', () => {
-      expect(thrownError).toBeDefined();
-    });
+    then(
+      'el sistema retorna un error de validacion indicando el campo requerido',
+      () => {
+        expect(thrownError).toBeDefined();
+      },
+    );
 
     and('no se crea ningun registro en la base de datos', () => {
       expect(mockPrismaService.employees.create).not.toHaveBeenCalled();
