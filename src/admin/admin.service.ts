@@ -40,9 +40,20 @@ export class AdminService {
     try {
       const { data, error } = await supabase.auth.admin.inviteUserByEmail(
         createAdminDto.email,
+        {
+          data: {
+            nombre: createAdminDto.name,
+            rol: "administrador",
+          },
+          redirectTo: 'http://localhost:3001/signup',
+        },
       );
 
       if (error || !data?.user) {
+        console.log(
+          'Error al invitar admin:',
+          error?.message || 'No se creó el usuario',
+        );
         throw new InternalServerErrorException(error.message);
       }
 
@@ -51,7 +62,7 @@ export class AdminService {
       await supabase.auth.admin.updateUserById(userId, {
         // Se ingresa esto para que en el token que genera Supabase esté incluido que es Admin.
         // El rolId se pone null para consistencia, ya que los admins no tienen cargo asignado.
-        app_metadata: { isAdmin: true, rolId: null },
+        app_metadata: { isAdmin: true, rolId: null, mustSetPassword: true },
       });
 
       const authId = data.user.id;
@@ -71,6 +82,7 @@ export class AdminService {
       return user.id;
     } catch (error) {
       if (error instanceof Error) {
+        console.log('Error al invitar admin:', error.message);
         throw new InternalServerErrorException(error.message);
       }
 
@@ -204,7 +216,7 @@ export class AdminService {
    */
   async suspendEmployee(id: number) {
     const employee = await this.prisma.employees.findUnique({
-      where: { id_employee: id  },
+      where: { id_employee: id },
     });
 
     if (!employee) {
