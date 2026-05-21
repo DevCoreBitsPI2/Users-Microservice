@@ -1,7 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { NATS_SERVICE } from '@/src/config/services';
-import { ClientProxy } from '@nestjs/microservices';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { PrismaService } from '@/src/lib/prisma';
 import { Logger } from '@nestjs/common';
 import { LoginDto, LoginOtpDto, VerifyOtpDto } from '@/src/auth/dto';
@@ -100,7 +99,10 @@ export class AuthService {
       });
 
       if (error || !data.session) {
-        throw new UnauthorizedException(error?.message ?? 'Invalid OTP');
+        throw new RpcException({
+          status: HttpStatus.UNAUTHORIZED,
+          message: error?.message ?? 'Invalid OTP',
+        });
       }
 
       return {
@@ -109,7 +111,7 @@ export class AuthService {
         token: data.session.access_token,
       };
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
+      if (error instanceof RpcException || error instanceof UnauthorizedException) {
         throw error;
       }
 
