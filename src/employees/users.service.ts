@@ -89,7 +89,7 @@ export class UsersService {
             nombre: inviteUserDto.first_name,
             rol: cargo.name,
           },
-          redirectTo: 'http://localhost:3001/signup',
+          redirectTo: envs.redirectUrl,
         },
       );
 

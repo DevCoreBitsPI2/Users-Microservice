@@ -9,6 +9,7 @@ interface EnvVars {
   DATABASE_ADMIN_KEY: string;
   NATS_SERVERS: string[];
   QR_TOKEN_SECRET?: string;
+  REDIRECT_URL?: string;
 }
 
 const envsSchema = joi
@@ -20,6 +21,7 @@ const envsSchema = joi
     DATABASE_ADMIN_KEY: joi.string().required(),
     NATS_SERVERS: joi.array().items(joi.string()).required(),
     QR_TOKEN_SECRET: joi.string().optional(),
+    REDIRECT_URL: joi.string().required(),
   })
   .unknown(true);
 
@@ -41,4 +43,5 @@ export const envs = {
   databaseAdminKey: envVars.DATABASE_ADMIN_KEY,
   natsServers: envVars.NATS_SERVERS,
   qrTokenSecret: envVars.QR_TOKEN_SECRET ?? envVars.DATABASE_ADMIN_KEY,
+  redirectUrl: envVars.REDIRECT_URL,
 };
