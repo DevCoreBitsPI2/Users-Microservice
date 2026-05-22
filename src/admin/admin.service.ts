@@ -10,6 +10,7 @@ import { Logger } from '@nestjs/common';
 import { CreateAdminDto } from '@/src/admin/dto';
 import { PaginationDto } from '@/src/common';
 import { supabase } from '@/src/lib/supabase/supabase';
+import { envs } from '@/src/config/envs';
 
 /*
 NotFoundException lanza automáticamente el error 404.
@@ -45,7 +46,7 @@ export class AdminService {
             nombre: createAdminDto.name,
             rol: "administrador",
           },
-          redirectTo: 'http://localhost:3001/signup',
+          redirectTo: envs.redirectUrl,
         },
       );
 
