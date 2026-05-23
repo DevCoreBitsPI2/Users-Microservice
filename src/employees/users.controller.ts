@@ -10,6 +10,9 @@ import {
   FilterEmployeesDto,
   FilterByPositionIdsDto,
 } from '@/src/employees/dto';
+import { UploadProfileImageDto } from './dto/upload-photo.dto';
+import { Express } from 'express';
+
 
 @Controller()
 export class UsersController {
@@ -63,7 +66,7 @@ export class UsersController {
   findEmployeesByIds(@Payload() ids: number[]) {
     return this.usersService.findEmployeesByIds(ids);
   }
-    @MessagePattern({ cmd: 'findEmployeesByPositionIds' })
+  @MessagePattern({ cmd: 'findEmployeesByPositionIds' })
   findEmployeesByPositionIds(@Payload() dto: FilterByPositionIdsDto) {
     return this.usersService.findEmployeesByPositionIds(dto.positionIds);
   }
@@ -122,5 +125,27 @@ export class UsersController {
   @MessagePattern({ cmd: 'completeFirstLogin' })
   completeFirstTimeSetup(@Payload() idSupabase: string) {
     return this.usersService.completeFirstTimeSetup(idSupabase);
+  }
+
+  @MessagePattern({ cmd: 'uploadProfileImage' })
+  async uploadProfileImage(@Payload() payload: UploadProfileImageDto) {
+    const buffer = Buffer.from(payload.bufferBase64, 'base64');
+
+    const file = {
+      fieldname: payload.fieldname || 'file',
+      originalname: payload.originalname,
+      encoding: payload.encoding || '7bit',
+      mimetype: payload.mimetype,
+      size: buffer.length,
+      buffer,
+    } as Express.Multer.File;
+
+    const uploadedImage = await this.usersService.uploadFile(file);
+
+    return this.usersService.uploadProfileImage({
+      idUser: payload.idUser,
+      imageUrl: uploadedImage.secure_url,
+      publicId: uploadedImage.public_id,
+    });
   }
 }

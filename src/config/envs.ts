@@ -10,6 +10,9 @@ interface EnvVars {
   NATS_SERVERS: string[];
   QR_TOKEN_SECRET?: string;
   REDIRECT_URL?: string;
+  CLOUDINARY_NAME?: string;
+  CLOUDINARY_API_KEY?: string;
+  CLOUDINARY_API_SECRET?: string;
 }
 
 const envsSchema = joi
@@ -22,6 +25,9 @@ const envsSchema = joi
     NATS_SERVERS: joi.array().items(joi.string()).required(),
     QR_TOKEN_SECRET: joi.string().optional(),
     REDIRECT_URL: joi.string().optional(),
+    CLOUDINARY_NAME: joi.string().required(),
+    CLOUDINARY_API_KEY: joi.string().required(),
+    CLOUDINARY_API_SECRET: joi.string().required(),
   })
   .unknown(true);
 
@@ -44,4 +50,7 @@ export const envs = {
   natsServers: envVars.NATS_SERVERS,
   qrTokenSecret: envVars.QR_TOKEN_SECRET ?? envVars.DATABASE_ADMIN_KEY,
   redirectUrl: envVars.REDIRECT_URL ?? "https://www.devcorebits.com/signup",
+  cloudinaryName: envVars.CLOUDINARY_NAME,
+  cloudinaryApiKey: envVars.CLOUDINARY_API_KEY,
+  cloudinaryApiSecret: envVars.CLOUDINARY_API_SECRET,
 };
