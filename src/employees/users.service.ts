@@ -6,6 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { v2 as cloudinary } from 'cloudinary';
 import { InternalServerErrorException } from '@nestjs/common';
 import { NATS_SERVICE } from '@/src/config/services';
 import { ClientProxy } from '@nestjs/microservices';
@@ -13,6 +14,7 @@ import { PrismaService } from '@/src/lib/prisma';
 import { Logger } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 import { createHmac, timingSafeEqual } from 'crypto';
+import { CloudinaryResponse } from '@/src/lib/imageProvider/cloudinary-response';
 import {
   GenerateEmployeeQrDto,
   InviteUserDto,
@@ -34,6 +36,8 @@ BadRequestException es cuándo no hay datos válidos.
 ForbiddenException es cuando no hay permisos.
 Usando las clases directamente se lanzan solos sin hacer HttpException. */
 
+const streamifier = require('streamifier');
+
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger('users service');
@@ -45,6 +49,40 @@ export class UsersService {
     private readonly prisma: PrismaService,
   ) {}
 
+  async uploadFile(file: Express.Multer.File): Promise<CloudinaryResponse> {
+    const buffer: Buffer | undefined = Buffer.isBuffer(file)
+      ? (file as unknown as Buffer)
+      : (file as any)?.buffer;
+
+    if (!buffer) {
+      return Promise.reject(new Error('No buffer provided to uploadFile'));
+    }
+
+    const publicId = `profile_${Date.now()}`;
+
+    return new Promise<CloudinaryResponse>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: 'image',
+          public_id: publicId,
+        },
+        (error, result) => {
+          if (error) return reject(error);
+          if (!result) {
+            return reject(new Error('No upload result from Cloudinary'));
+          }
+
+          resolve(result);
+        },
+      );
+
+      try {
+        streamifier.createReadStream(buffer).pipe(uploadStream);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
   /**
    * Invita a un nuevo empleado enviándole un email de registro a través de Supabase.
    * Crea el registro del empleado en la base de datos y lo vincula al usuario de Supabase.
@@ -670,7 +708,7 @@ export class UsersService {
       select: { id_employee: true },
     });
 
-    if(employee){
+    if (employee) {
       await this.prisma.employees.update({
         where: { id_employee: employee.id_employee },
         data: {
@@ -680,5 +718,42 @@ export class UsersService {
     }
 
     return { ok: true };
+  }
+
+  async uploadProfileImage({
+    idUser,
+    imageUrl,
+    publicId,
+  }: {
+    idUser: number;
+    imageUrl: string;
+    publicId: string;
+  }) {
+    try {
+      const employee = await this.prisma.employees.findUnique({
+        where: { id_employee: idUser },
+      });
+
+      if (!employee) {
+        await cloudinary.uploader.destroy(publicId);
+
+        throw new NotFoundException(
+          'No se ha encontrado registro del funcionario.',
+        );
+      }
+
+      const updated = await this.prisma.employees.update({
+        where: { id_employee: idUser },
+        data: { photo_url: imageUrl },
+        select: {
+          id_employee: true,
+        },
+      });
+      console.log(updated)
+      return updated;
+    } catch (error) {
+      await cloudinary.uploader.destroy(publicId);
+      throw error;
+    }
   }
 }

@@ -11,7 +11,7 @@ import { CreateAdminDto } from '@/src/admin/dto';
 import { PaginationDto } from '@/src/common';
 import { supabase } from '@/src/lib/supabase/supabase';
 import { envs } from '@/src/config/envs';
-
+import {firstValueFrom} from 'rxjs';
 /*
 NotFoundException lanza automáticamente el error 404.
 BadRequestException es cuándo no hay datos válidos.
@@ -44,7 +44,7 @@ export class AdminService {
         {
           data: {
             nombre: createAdminDto.name,
-            rol: "administrador",
+            rol: 'administrador',
           },
           redirectTo: envs.redirectUrl,
         },
@@ -253,6 +253,12 @@ export class AdminService {
   async resendInvitation(id: number) {
     const employee = await this.prisma.employees.findUnique({
       where: { id_employee: id },
+      select: {
+        email: true,
+        status: true,
+        first_name: true,
+        id_position: true,
+      },
     });
 
     if (!employee) {
@@ -267,8 +273,27 @@ export class AdminService {
       );
     }
 
+    const cargo = await firstValueFrom(
+      this.client.send({ cmd: 'findOnePosition' }, employee.id_position),
+    );
+
+    if (!cargo) {
+      throw new InternalServerErrorException('Cargo no encontrado');
+    }
+
+    if (!cargo?.name) {
+      throw new InternalServerErrorException('El cargo no tiene nombre');
+    }
+
     const { data, error } = await supabase.auth.admin.inviteUserByEmail(
       employee.email,
+      {
+        data: {
+          nombre: employee.first_name,
+          rol: cargo.name
+        },
+        redirectTo: envs.redirectUrl,
+      },
     );
 
     if (error || !data?.user) {
